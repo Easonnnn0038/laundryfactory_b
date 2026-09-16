@@ -1,0 +1,66 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: laundry-factory-backend
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/laundry_db?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:123456}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      pool-name: FactoryHikariCP
+      maximum-pool-size: 15
+      minimum-idle: 3
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      timeout: 3s
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+    default-property-inclusion: non_null
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+
+jwt:
+  secret: ${JWT_SECRET:laundry-factory-jwt-secret-change-this-in-production-2026}
+  expiration: ${JWT_EXPIRATION:86400000}
+
+factory:
+  deadline:
+    normal-hours: ${NORMAL_DEADLINE_HOURS:96}
+    urgent-hours: ${URGENT_DEADLINE_HOURS:48}
+    warning-before-hours: ${WARNING_BEFORE_HOURS:24}
+
+knife4j:
+  enable: ${KNIFE4J_ENABLED:true}
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    com.laundry.factory: info
+
