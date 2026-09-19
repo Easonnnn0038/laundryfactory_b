@@ -28,7 +28,7 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // TODO(device-auth): 扫码设备型号确定后，为工位接口增加设备密钥或证书认证。
-                        .requestMatchers("/api/factory/public/**", "/api/factory/workflow/**", "/actuator/health", "/doc.html",
+                        .requestMatchers("/api/factory/public/**", "/api/factory/workflow/**", "/api/factory/return-dispatch/**", "/actuator/health", "/doc.html",
                                 "/swagger-ui/**", "/v3/api-docs/**", "/webjars/**").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex.authenticationEntryPoint((request, response, error) -> {

@@ -147,7 +147,7 @@ public class FactoryWorkflowService {
     @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> confirm(ConfirmProcessRequest request) {
         String process = request.process().toUpperCase();
-        if (!List.of("SORT", "WASH", "DRY", "IRON", "QUALITY", "PACK", "RETURN").contains(process)) {
+        if (!List.of("SORT", "WASH", "DRY", "IRON", "QUALITY", "PACK").contains(process)) {
             throw new IllegalArgumentException("不支持的工序：" + process);
         }
         Map<String, Object> detail = orderDetail(request.orderNo());
@@ -215,7 +215,6 @@ public class FactoryWorkflowService {
         }
 
         updatePackageStatus(request.orderNo(), process, request.qualityResult(), now);
-        if ("RETURN".equals(process)) createReturnBatch(request.orderNo(), now);
         return orderDetail(request.orderNo());
     }
 
@@ -239,7 +238,6 @@ public class FactoryWorkflowService {
             case "IRON" -> "QUALITY";
             case "QUALITY" -> "REWORK".equalsIgnoreCase(request.qualityResult()) ? "WASH" : "PACK";
             case "PACK" -> "RETURN";
-            case "RETURN" -> "DONE";
             default -> throw new IllegalArgumentException("未知工序");
         };
     }
@@ -248,29 +246,10 @@ public class FactoryWorkflowService {
         String status = switch (process) {
             case "QUALITY" -> "REWORK".equalsIgnoreCase(qualityResult) ? "PROCESSING" : "QUALITY_PASSED";
             case "PACK" -> "PACKED";
-            case "RETURN" -> "RETURNING";
             default -> "PROCESSING";
         };
         jdbc.update("UPDATE factory_package SET status=?, packed_time=IF(?='PACK', ?, packed_time), update_time=? WHERE order_no=?",
                 status, process, now, now, orderNo);
-    }
-
-    private void createReturnBatch(String orderNo, LocalDateTime now) {
-        String batchNo = "RB" + now.format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss")) + UUID.randomUUID().toString().substring(0, 4).toUpperCase();
-        Map<String, Object> summary = jdbc.queryForMap("""
-                SELECT COUNT(*) packageCount, SUM(expected_item_count) itemCount FROM factory_package WHERE order_no=?
-                """, orderNo);
-        jdbc.update("""
-                INSERT INTO factory_return_batch(return_batch_no, package_count, item_count, status, dispatch_time)
-                VALUES (?, ?, ?, 'DISPATCHED', ?)
-                """, batchNo, summary.get("packageCount"), summary.get("itemCount"), now);
-        Long returnId = jdbc.queryForObject("SELECT id FROM factory_return_batch WHERE return_batch_no=?", Long.class, batchNo);
-        jdbc.update("""
-                INSERT INTO factory_return_batch_package(return_batch_id, return_batch_no, package_id, package_no,
-                    source_batch_id, source_batch_no, store_code)
-                SELECT ?, ?, fp.id, fp.package_no, fp.source_batch_id, fp.source_batch_no, lo.store_code
-                FROM factory_package fp JOIN laundry_order lo ON lo.id=fp.order_id WHERE fp.order_no=?
-                """, returnId, batchNo, orderNo);
     }
 
     private void writeRecord(Long itemId, String barcode, Long packageId, String process, String action,
