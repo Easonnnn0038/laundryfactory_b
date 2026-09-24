@@ -1,0 +1,24 @@
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+factory:
+  security:
+    device-tokens: ${FACTORY_DEVICE_TOKENS}
+    allowed-origins: ${FACTORY_ALLOWED_ORIGINS}
+
+knife4j:
+  enable: false
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+logging:
+  level:
+    root: info
+    com.laundry.factory: info

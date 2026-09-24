@@ -19,6 +19,9 @@ spring:
     default-property-inclusion: non_null
 
 factory:
+  security:
+    device-tokens: ${FACTORY_DEVICE_TOKENS:dev-device:factory-dev-token-change-me}
+    allowed-origins: ${FACTORY_ALLOWED_ORIGINS:http://localhost:5174}
   deadline:
     normal-hours: ${NORMAL_DEADLINE_HOURS:96}
     urgent-hours: ${URGENT_DEADLINE_HOURS:48}

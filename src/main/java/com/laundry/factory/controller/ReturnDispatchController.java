@@ -5,6 +5,7 @@ import com.laundry.factory.dto.DispatchReturnBatchRequest;
 import com.laundry.factory.service.ReturnDispatchService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Map;
 
@@ -18,7 +19,9 @@ public class ReturnDispatchController {
     public Result<List<Map<String, Object>>> ready() { return Result.success(service.readyPackages()); }
 
     @PostMapping("/dispatch")
-    public Result<Map<String, Object>> dispatch(@Valid @RequestBody DispatchReturnBatchRequest request) {
-        return Result.success(service.dispatch(request));
+    public Result<Map<String, Object>> dispatch(@Valid @RequestBody DispatchReturnBatchRequest request,
+                                                HttpServletRequest http) {
+        return Result.success(service.dispatch(new DispatchReturnBatchRequest(
+                request.packageIds(), String.valueOf(http.getAttribute("factoryDeviceCode")))));
     }
 }

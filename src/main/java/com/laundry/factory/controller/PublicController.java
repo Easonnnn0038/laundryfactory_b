@@ -28,5 +28,9 @@ public class PublicController {
         data.put("warningBeforeHours", warningHours);
         return Result.success(data);
     }
-}
 
+    @GetMapping("/device-check")
+    public Result<Map<String, Object>> deviceCheck() {
+        return Result.success(Map.of("authorized", true));
+    }
+}
