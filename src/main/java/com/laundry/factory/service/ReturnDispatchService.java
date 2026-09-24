@@ -27,8 +27,9 @@ public class ReturnDispatchService {
                 FROM factory_package fp JOIN laundry_order lo ON lo.id=fp.order_id
                 WHERE fp.status='PACKED'
                   AND NOT EXISTS (SELECT 1 FROM factory_return_batch_package rbp WHERE rbp.package_id=fp.id)
-                  AND NOT EXISTS (SELECT 1 FROM factory_package sibling
-                      WHERE sibling.order_id=fp.order_id AND sibling.status<>'PACKED')
+                  AND (EXISTS (SELECT 1 FROM supplement_attachment sa WHERE sa.package_id=fp.id)
+                    OR NOT EXISTS (SELECT 1 FROM factory_package sibling
+                      WHERE sibling.order_id=fp.order_id AND sibling.status<>'PACKED'))
                   AND fp.expected_item_count=(SELECT COUNT(*) FROM factory_item_state fis
                       WHERE fis.package_id=fp.id AND fis.current_process='RETURN')
                 ORDER BY lo.store_code, fp.order_no, fp.package_seq
@@ -53,6 +54,11 @@ public class ReturnDispatchService {
         Map<Long, Long> selectedPerOrder = packages.stream().collect(java.util.stream.Collectors.groupingBy(
                 p -> ((Number) p.get("order_id")).longValue(), java.util.stream.Collectors.counting()));
         for (Map.Entry<Long, Long> entry : selectedPerOrder.entrySet()) {
+            Integer supplementSelected = jdbc.queryForObject("""
+                    SELECT COUNT(*) FROM supplement_attachment sa WHERE sa.package_id IN (%s) AND sa.order_id=?
+                    """.formatted(placeholders), Integer.class,
+                    java.util.stream.Stream.concat(ids.stream().map(x -> (Object)x), java.util.stream.Stream.of(entry.getKey())).toArray());
+            if (supplementSelected != null && supplementSelected > 0) continue;
             Integer allPackages = jdbc.queryForObject("SELECT COUNT(*) FROM factory_package WHERE order_id=?",
                     Integer.class, entry.getKey());
             if (allPackages == null || allPackages.longValue() != entry.getValue())

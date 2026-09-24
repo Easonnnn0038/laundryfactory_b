@@ -57,20 +57,17 @@ public class FactoryWorkflowService {
         }
 
         Long orderId = ((Number) order.get("id")).longValue();
-        Integer existing = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM factory_item_state WHERE order_item_id IN (SELECT id FROM order_item WHERE order_id=?)",
-                Integer.class, orderId);
-        if (existing != null && existing > 0) return orderDetail(orderNo);
-
         List<Map<String, Object>> items = jdbc.queryForList("""
                 SELECT oi.id, oi.barcode, oi.category_name, oi.color, oi.brand, oi.special,
                        fpi.package_id, fpi.package_no
                 FROM order_item oi
                 JOIN factory_package_item fpi ON fpi.order_item_id = oi.id
-                WHERE oi.order_id = ? ORDER BY oi.item_seq
+                JOIN factory_package fp ON fp.id=fpi.package_id
+                WHERE oi.order_id = ? AND fp.status='WAIT_FACTORY'
+                  AND NOT EXISTS (SELECT 1 FROM factory_item_state fis WHERE fis.order_item_id=oi.id)
+                ORDER BY oi.item_seq
                 """, orderId);
-        int totalCount = ((Number) order.get("total_count")).intValue();
-        if (items.size() != totalCount) throw new IllegalArgumentException("大件内衣物明细不完整，不能整单导入");
+        if (items.isEmpty()) return orderDetail(orderNo);
 
         LocalDateTime receiveTime = toLocalDateTime(order.get("receive_time"));
         int hours = ((Number) order.get("urgent_flag")).intValue() == 1 ? 48 : 96;
@@ -93,7 +90,7 @@ public class FactoryWorkflowService {
         }
         jdbc.update("""
                 UPDATE factory_package SET received_item_count=expected_item_count, status='RECEIVED',
-                    received_time=?, update_time=? WHERE order_no=?
+                    received_time=?, update_time=? WHERE order_no=? AND status='WAIT_FACTORY'
                 """, now, now, orderNo);
         jdbc.update("""
                 UPDATE factory_package_item SET scan_status='MATCHED', scan_time=?
@@ -139,7 +136,6 @@ public class FactoryWorkflowService {
                 JOIN laundry_order lo ON lo.id=oi.order_id
                 WHERE fis.current_process=?
                 GROUP BY lo.id, lo.order_no, lo.total_count, lo.urgent_flag
-                HAVING COUNT(*) = lo.total_count
                 ORDER BY lo.urgent_flag DESC, MIN(fis.deadline_time)
                 """, normalized);
     }
@@ -152,13 +148,13 @@ public class FactoryWorkflowService {
         }
         Map<String, Object> detail = orderDetail(request.orderNo());
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> items = (List<Map<String, Object>>) detail.get("items");
-        if (items.isEmpty() || items.get(0).get("currentProcess") == null) {
+        List<Map<String, Object>> allItems = (List<Map<String, Object>>) detail.get("items");
+        if (allItems.isEmpty() || allItems.stream().allMatch(item -> item.get("currentProcess") == null)) {
             throw new IllegalArgumentException("订单尚未在到厂签收工位导入");
         }
-        if (items.stream().anyMatch(item -> !process.equals(String.valueOf(item.get("currentProcess"))))) {
-            throw new IllegalArgumentException("订单尚未全部进入“" + processLabel(process) + "”工序，不能越级确认");
-        }
+        List<Map<String, Object>> items = allItems.stream()
+                .filter(item -> process.equals(String.valueOf(item.get("currentProcess")))).toList();
+        if (items.isEmpty()) throw new IllegalArgumentException("该订单当前没有位于“" + processLabel(process) + "”工位的衣物");
 
         String next = nextProcess(process, request);
         String afterStatus = "WAIT_" + next;
@@ -214,7 +210,7 @@ public class FactoryWorkflowService {
                     String.valueOf(item.get("status")), afterStatus, device, process, request.remark());
         }
 
-        updatePackageStatus(request.orderNo(), process, request.qualityResult(), now);
+        updatePackageStatus(items, process, request.qualityResult(), now);
         return orderDetail(request.orderNo());
     }
 
@@ -224,14 +220,14 @@ public class FactoryWorkflowService {
             case "WASH" -> {
                 Map<String, Object> flags = jdbc.queryForMap("""
                         SELECT MIN(need_dry) AS need_dry, MIN(need_iron) AS need_iron FROM factory_item_state fis
-                        JOIN order_item oi ON oi.id=fis.order_item_id WHERE oi.order_no=?
+                        JOIN order_item oi ON oi.id=fis.order_item_id WHERE oi.order_no=? AND fis.current_process='WASH'
                         """, request.orderNo());
                 yield ((Number) flags.get("need_dry")).intValue() == 1 ? "DRY" : ((Number) flags.get("need_iron")).intValue() == 1 ? "IRON" : "QUALITY";
             }
             case "DRY" -> {
                 Integer needIron = jdbc.queryForObject("""
                         SELECT MIN(need_iron) FROM factory_item_state fis JOIN order_item oi ON oi.id=fis.order_item_id
-                        WHERE oi.order_no=?
+                        WHERE oi.order_no=? AND fis.current_process='DRY'
                         """, Integer.class, request.orderNo());
                 yield needIron != null && needIron == 1 ? "IRON" : "QUALITY";
             }
@@ -242,14 +238,22 @@ public class FactoryWorkflowService {
         };
     }
 
-    private void updatePackageStatus(String orderNo, String process, String qualityResult, LocalDateTime now) {
-        String status = switch (process) {
-            case "QUALITY" -> "REWORK".equalsIgnoreCase(qualityResult) ? "PROCESSING" : "QUALITY_PASSED";
-            case "PACK" -> "PACKED";
-            default -> "PROCESSING";
-        };
-        jdbc.update("UPDATE factory_package SET status=?, packed_time=IF(?='PACK', ?, packed_time), update_time=? WHERE order_no=?",
-                status, process, now, now, orderNo);
+    private void updatePackageStatus(List<Map<String, Object>> items, String process, String qualityResult, LocalDateTime now) {
+        java.util.Set<Long> packageIds = new java.util.LinkedHashSet<>();
+        for (Map<String,Object> item : items) {
+            Long packageId=jdbc.queryForObject("SELECT package_id FROM factory_item_state WHERE order_item_id=?",Long.class,item.get("id"));
+            if(packageId!=null) packageIds.add(packageId);
+        }
+        for(Long packageId:packageIds){
+            String status="PROCESSING";
+            if("QUALITY".equals(process)&&!"REWORK".equalsIgnoreCase(qualityResult)) status="QUALITY_PASSED";
+            if("PACK".equals(process)){
+                Integer pending=jdbc.queryForObject("SELECT COUNT(*) FROM factory_item_state WHERE package_id=? AND current_process<>'RETURN'",Integer.class,packageId);
+                if(pending!=null&&pending==0) status="PACKED";
+            }
+            jdbc.update("UPDATE factory_package SET status=?,packed_time=IF(?='PACKED',?,packed_time),update_time=? WHERE id=?",
+                    status,status,now,now,packageId);
+        }
     }
 
     private void writeRecord(Long itemId, String barcode, Long packageId, String process, String action,

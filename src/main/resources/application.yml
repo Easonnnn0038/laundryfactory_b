@@ -13,29 +13,10 @@ spring:
       pool-name: FactoryHikariCP
       maximum-pool-size: 15
       minimum-idle: 3
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
-      database: ${REDIS_DATABASE:0}
-      timeout: 3s
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
     time-zone: Asia/Shanghai
     default-property-inclusion: non_null
-
-mybatis-plus:
-  configuration:
-    map-underscore-to-camel-case: true
-  global-config:
-    banner: false
-    db-config:
-      id-type: auto
-
-jwt:
-  secret: ${JWT_SECRET:laundry-factory-jwt-secret-change-this-in-production-2026}
-  expiration: ${JWT_EXPIRATION:86400000}
 
 factory:
   deadline:
@@ -51,16 +32,6 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
 
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info
-  endpoint:
-    health:
-      show-details: never
-
 logging:
   level:
     com.laundry.factory: info
-
