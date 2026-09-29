@@ -44,7 +44,7 @@ public class FactoryWorkflowController {
     public Result<Map<String, Object>> confirm(@Valid @RequestBody ConfirmProcessRequest request,
                                                HttpServletRequest http) {
         ConfirmProcessRequest trusted = new ConfirmProcessRequest(request.orderNo(), request.process(), device(http),
-                request.sortTypeCode(), request.needDry(), request.needIron(), request.qualityResult(), request.remark());
+                request.sortTypeCode(), request.needDry(), request.needIron(), request.qualityResult(), request.remark(), request.photoPaths());
         return Result.success(service.confirm(trusted));
     }
 

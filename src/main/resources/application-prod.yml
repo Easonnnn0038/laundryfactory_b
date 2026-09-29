@@ -5,6 +5,7 @@ spring:
     password: ${DB_PASSWORD}
 
 factory:
+  quality-photo-dir: ${FACTORY_QUALITY_PHOTO_DIR}
   security:
     device-tokens: ${FACTORY_DEVICE_TOKENS}
     allowed-origins: ${FACTORY_ALLOWED_ORIGINS}
