@@ -94,12 +94,15 @@ public class ReturnDispatchService {
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                     """, batchId, batchNo, packageId, pkg.get("package_no"),
                     pkg.get("source_batch_id"), pkg.get("source_batch_no"), storeCode);
-            jdbc.update("UPDATE factory_package SET status='RETURNING', update_time=? WHERE id=?", now, packageId);
-            jdbc.update("""
+            int changedPackage = jdbc.update("UPDATE factory_package SET status='RETURNING', update_time=? WHERE id=? AND status='PACKED'", now, packageId);
+            if (changedPackage != 1) throw new IllegalArgumentException("大件状态已变化，请刷新后重试");
+            int changedItems = jdbc.update("""
                     UPDATE factory_item_state SET current_process='DONE', status='WAIT_STORE',
                         last_operate_time=?, update_time=?, version=version+1
                     WHERE package_id=? AND current_process='RETURN'
                     """, now, now, packageId);
+            if (changedItems != ((Number) pkg.get("expected_item_count")).intValue())
+                throw new IllegalArgumentException("大件衣物状态已变化，请刷新后重试");
             jdbc.update("""
                     INSERT INTO factory_process_record(event_id, order_item_id, barcode, package_id,
                         process_code, action_code, before_status, after_status, device_code,

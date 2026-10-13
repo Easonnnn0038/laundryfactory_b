@@ -24,6 +24,7 @@ spring:
 
 factory:
   quality-photo-dir: ${FACTORY_QUALITY_PHOTO_DIR:./uploads/quality}
+  quality-photo-orphan-hours: ${FACTORY_QUALITY_PHOTO_ORPHAN_HOURS:24}
   security:
     device-tokens: ${FACTORY_DEVICE_TOKENS:dev-device:factory-dev-token-change-me}
     allowed-origins: ${FACTORY_ALLOWED_ORIGINS:http://localhost:5174}

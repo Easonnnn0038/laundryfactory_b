@@ -98,6 +98,9 @@ public class FactoryWorkflowService {
     public Map<String,Object> confirm(ConfirmProcessRequest request){
         String action=request.process().toUpperCase();
         if(!Set.of("WASH","DRY","IRON","SHOE_WASH","QUALITY","PACK").contains(action))throw new IllegalArgumentException("不支持的操作："+action);
+        // Serialize operations on the same order before reading item state; stale snapshots must not advance it.
+        List<Long> locked=jdbc.query("SELECT id FROM laundry_order WHERE order_no=? FOR UPDATE",(rs,n)->rs.getLong(1),request.orderNo().trim());
+        if(locked.isEmpty())throw new IllegalArgumentException("未找到订单："+request.orderNo());
         Map<String,Object> detail=orderDetail(request.orderNo());
         @SuppressWarnings("unchecked") List<Map<String,Object>> all=(List<Map<String,Object>>)detail.get("items");
         if(all.isEmpty()||all.stream().allMatch(i->i.get("currentProcess")==null))throw new IllegalArgumentException("订单尚未到厂导入");

@@ -15,4 +15,5 @@ public class QualityPhotoController {
     public QualityPhotoController(QualityPhotoService service){this.service=service;}
     @PostMapping public Result<Map<String,Object>> upload(@RequestParam("file") MultipartFile file){return Result.success(service.save(file));}
     @GetMapping("/{day}/{name:.+}") public ResponseEntity<Resource> read(@PathVariable String day,@PathVariable String name){Resource resource=service.read(day,name);String type=name.endsWith(".png")?"image/png":"image/jpeg";return ResponseEntity.ok().contentType(MediaType.parseMediaType(type)).header(HttpHeaders.CACHE_CONTROL,"private, max-age=3600").body(resource);}
+    @DeleteMapping("/{day}/{name:.+}") public Result<Void> delete(@PathVariable String day,@PathVariable String name){service.delete(day,name);return Result.success(null);}
 }
