@@ -9,8 +9,8 @@ import org.springframework.stereotype.Component;
 @Component
 @ConditionalOnProperty(name="factory.schema-check.enabled", havingValue="true", matchIfMissing=true)
 public class StoreSchemaVersionCheck implements ApplicationRunner {
-    // V14 adds the factory quality-photo column and flexible workflow used by this service.
-    private static final int REQUIRED_VERSION = 14;
+    // V25 adds the fulfillment method required to keep home deliveries out of store return batches.
+    private static final int REQUIRED_VERSION = 25;
     private final JdbcTemplate jdbc;
 
     public StoreSchemaVersionCheck(JdbcTemplate jdbc) { this.jdbc = jdbc; }

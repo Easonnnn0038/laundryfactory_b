@@ -46,6 +46,11 @@ class FactoryApplicationTests {
     @BeforeEach
     @AfterEach
     void cleanDatabase() {
+        if (jdbc.queryForObject("""
+                SELECT COUNT(*) FROM information_schema.columns
+                WHERE table_schema=DATABASE() AND table_name='laundry_order' AND column_name='fulfillment_method'
+                """, Integer.class) == 0)
+            jdbc.execute("ALTER TABLE laundry_order ADD COLUMN fulfillment_method VARCHAR(20) NOT NULL DEFAULT 'STORE_PICKUP'");
         for (String table : List.of("factory_return_batch_package", "factory_return_batch",
                 "factory_quality_record", "factory_process_record", "factory_item_state",
                 "factory_package_item", "supplement_attachment", "factory_package",
@@ -120,6 +125,15 @@ class FactoryApplicationTests {
         assertEquals(1, count("factory_return_batch"));
         assertThrows(IllegalArgumentException.class, () -> returns.dispatch(new DispatchReturnBatchRequest(
                 List.of(first.packageId()), "return-station")));
+    }
+
+    @Test
+    void homeDeliveryCannotBeSentToStore() {
+        Fixture delivery = readyToReturn("00120261013010", "001");
+        jdbc.update("UPDATE laundry_order SET fulfillment_method='HOME_DELIVERY' WHERE order_no=?", delivery.orderNo());
+        assertTrue(returns.readyPackages().stream().noneMatch(row -> delivery.orderNo().equals(row.get("orderNo"))));
+        assertThrows(IllegalArgumentException.class, () -> returns.dispatch(new DispatchReturnBatchRequest(
+                List.of(delivery.packageId()), "return-station")));
     }
 
     @Test

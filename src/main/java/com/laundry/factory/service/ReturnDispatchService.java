@@ -25,7 +25,7 @@ public class ReturnDispatchService {
                        fp.expected_item_count AS itemCount, fp.source_batch_no AS sourceBatchNo,
                        lo.store_code AS storeCode
                 FROM factory_package fp JOIN laundry_order lo ON lo.id=fp.order_id
-                WHERE fp.status='PACKED'
+                WHERE fp.status='PACKED' AND lo.fulfillment_method='STORE_PICKUP'
                   AND NOT EXISTS (SELECT 1 FROM factory_return_batch_package rbp WHERE rbp.package_id=fp.id)
                   AND (EXISTS (SELECT 1 FROM supplement_attachment sa WHERE sa.package_id=fp.id)
                     OR NOT EXISTS (SELECT 1 FROM factory_package sibling
@@ -44,7 +44,7 @@ public class ReturnDispatchService {
         String placeholders = String.join(",", ids.stream().map(id -> "?").toList());
         List<Map<String, Object>> packages = jdbc.queryForList("""
                 SELECT fp.id, fp.package_no, fp.order_id, fp.order_no, fp.source_batch_id, fp.source_batch_no,
-                       fp.expected_item_count, fp.status, lo.store_code
+                       fp.expected_item_count, fp.status, lo.store_code, lo.fulfillment_method
                 FROM factory_package fp JOIN laundry_order lo ON lo.id=fp.order_id
                 WHERE fp.id IN (%s) ORDER BY fp.id FOR UPDATE
                 """.formatted(placeholders), ids.toArray());
@@ -66,6 +66,8 @@ public class ReturnDispatchService {
         }
         for (Map<String, Object> pkg : packages) {
             long packageId = ((Number) pkg.get("id")).longValue();
+            if (!"STORE_PICKUP".equals(pkg.get("fulfillment_method")))
+                throw new IllegalArgumentException("寄回家订单不能加入门店回店批次");
             if (!storeCode.equals(pkg.get("store_code"))) throw new IllegalArgumentException("一次发车只能选择同一门店的大件");
             if (!"PACKED".equals(pkg.get("status"))) throw new IllegalArgumentException("大件尚未完成打包或已发货：" + pkg.get("package_no"));
             Integer already = jdbc.queryForObject("SELECT COUNT(*) FROM factory_return_batch_package WHERE package_id=?", Integer.class, packageId);

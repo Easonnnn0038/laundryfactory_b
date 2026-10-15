@@ -12,9 +12,9 @@ class StoreSchemaVersionCheckTest {
     @Test
     void refusesOldSchemaAndAcceptsRequiredVersion() {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
-        when(jdbc.queryForObject(anyString(), eq(Integer.class))).thenReturn(13, 14);
+        when(jdbc.queryForObject(anyString(), eq(Integer.class))).thenReturn(24, 25);
         var check = new StoreSchemaVersionCheck(jdbc);
-        assertTrue(assertThrows(IllegalStateException.class, () -> check.run(null)).getMessage().contains("V14"));
+        assertTrue(assertThrows(IllegalStateException.class, () -> check.run(null)).getMessage().contains("V25"));
         assertDoesNotThrow(() -> check.run(null));
     }
 }
